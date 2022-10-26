@@ -11,31 +11,41 @@ MPU6050 mpu(Wire);
 unsigned long timer = 0;
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(1000000);
   Wire.begin();
   
   byte status = mpu.begin();
-  Serial.print(F("MPU6050 status: "));
-  Serial.println(status);
+  //Serial.print(F("MPU6050 status: "));
+  //Serial.println(status);
   while(status!=0){ } // stop everything if could not connect to MPU6050
   
-  Serial.println(F("Calculating offsets, do not move MPU6050"));
+  //Serial.println(F("Calculating offsets, do not move MPU6050"));
   // delay(1000);
   // mpu.upsideDownMounting = true; // uncomment this line if the MPU6050 is mounted upside-down
   mpu.calcOffsets(); // gyro and accelero
-  Serial.println("Done!\n");
+  //Serial.println("Done!\n");
 }
 
 void loop() {
   mpu.update();
-  
-  if((millis()-timer)>10){ // print data every 10ms
-	Serial.print("X : ");
-	Serial.print(mpu.getAngleX());
-	Serial.print("\tY : ");
-	Serial.print(mpu.getAngleY());
-	Serial.print("\tZ : ");
-	Serial.println(mpu.getAngleZ());
-	timer = millis();  
+
+  if(Serial.available()) {
+    char c = Serial.read();
+    switch(c) {
+      case 'X':
+        Serial.println(mpu.getAngleX());
+        break;
+      case 'Y':
+        Serial.println(mpu.getAngleY());
+        break;
+      case 'Z':
+        Serial.println(mpu.getAngleZ());
+        break;
+      case 'R':
+        // Re-calibrate
+        mpu.calcOffsets();
+        Serial.println('R'); // Send something back to indicate that re-calibration is done
+    }
   }
+
 }

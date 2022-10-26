@@ -1,3 +1,6 @@
 [submodule "LJGL"]
 	path = LJGL
 	url = https://www.github.com/lj3d/LJGL.git
+[submodule "rotation/ArduinoSerialIO"]
+	path = rotation/ArduinoSerialIO
+	url = https://github.com/LJ3D/ArduinoSerialIO.git

@@ -1,7 +1,13 @@
 #include <ljgl.hpp>
+#include "ArduinoSerialIO/arduinoSerial.hpp"
 
+#include <stdlib.h>
 
 int main(){
+    arduinoSerial Serial("/dev/ttyACM0");
+    Serial.begin(B1000000);
+    Serial.setTimeout(1000);
+
     // === Set up a GLFW window, and init GLAD ===
     char windowName[] = "3D spinning suzanne";
     GLFWwindow* window = LJGL::setup(windowName); // Setup function exists just to move all the boilerplate crap out of sight
@@ -42,10 +48,34 @@ int main(){
         perspective = glm::perspective(glm::radians(45.0f), (float)m_viewport[2] / (float)m_viewport[3], 0.1f, 100.0f); // Update the perspective projection matrix
         suzanne.setProjectionT(perspective); // Set the perspective projection matrix
 
-        // Rotate and draw the suzanne :D
-        model = glm::rotate(model, glm::radians(1.0f), glm::vec3(0.0f, 1.0f, 0.5f)); // Rotate the suzanne
+        
+        Serial.print('X');
+        int angleX = atoi(Serial.readStringUntil('\n').c_str());
+        Serial.flush();
+
+        Serial.print('Y');
+        int angleY = atoi(Serial.readStringUntil('\n').c_str());
+        Serial.flush();
+
+        Serial.print('Z');
+        int angleZ = atoi(Serial.readStringUntil('\n').c_str());
+        Serial.flush();
+
+        // Set the angles:
+        model = glm::mat4(1.0f);
+        model = glm::rotate(model, glm::radians((float)angleX), glm::vec3(1.0f, 0.0f, 0.0f));
+        model = glm::rotate(model, glm::radians((float)angleY), glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::rotate(model, glm::radians((float)angleZ), glm::vec3(0.0f, 0.0f, 1.0f));
         suzanne.setModelT(model); // Set the model matrix
         suzanne.draw();
+        
+        // If user pressing space, send 'R' to arduino to re-calibrate
+        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS){
+            Serial.print('R');
+            Serial.flush();
+            // Wait for arduino to finish re-calibration (wait for something to be sent back)
+            while(!Serial.available());
+        }
 
         // === Swap buffers ===
         glfwSwapBuffers(window);

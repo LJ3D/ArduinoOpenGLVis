@@ -43,6 +43,7 @@ void loop() {
         break;
       case 'R':
         // Re-calibrate
+        mpu.begin();
         mpu.calcOffsets();
         Serial.println('R'); // Send something back to indicate that re-calibration is done
     }

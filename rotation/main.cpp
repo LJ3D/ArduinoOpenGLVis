@@ -1,85 +1,67 @@
 #include <ljgl.hpp>
 #include "ArduinoSerialIO/arduinoSerial.hpp"
 
-#include <stdlib.h>
-
 int main(){
+    // Set up the serial port
     arduinoSerial Serial("/dev/ttyACM0");
     Serial.begin(B1000000);
     Serial.setTimeout(1000);
 
+    // Take user input for the object to load
+    std::string objToLoad;
+    std::cout << "Enter the object to load: ";
+    std::cin >> objToLoad;
+
     // === Set up a GLFW window, and init GLAD ===
-    char windowName[] = "3D spinning suzanne";
+    char windowName[] = "3D spinning object";
     GLFWwindow* window = LJGL::setup(windowName); // Setup function exists just to move all the boilerplate crap out of sight
     glEnable(GL_DEPTH_TEST); // Enable depth testing - emsures that objects are drawn in the right order
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // Enable wireframe for model debugging
-    
-    LJGL::model_EBO suzanne;
-    suzanne.readVBO("suzanne.vbo");
-    suzanne.readEBO("suzanne.ebo");
-    suzanne.m_shader.createShader("GLSL/shader.vert.glsl", "GLSL/shader.frag.glsl");
-    suzanne.m_shader.setUniform3f("lightPos", 1.0f, 10.0f, 2.0f);
 
-    // === Define transforms ===
-    // === perspective/view transforms:
-    int m_viewport[4]; // Stores the viewport size
-    glGetIntegerv(GL_VIEWPORT, m_viewport); // Gets the viewport size
-    glm::mat4 perspective = glm::perspective(glm::radians(45.0f), (float)m_viewport[2] / (float)m_viewport[3], 0.1f, 100.0f); // Define the perspective projection matrix
-    glm::mat4 view = glm::mat4(1.0f); // Define a view matrix for the scene
-    view = glm::translate(view, glm::vec3(0.0f, 0.0f, -4.0f)); // note that we're translating the scene in the reverse direction of where we want to move
-    // Only need to set this transform once (camera never moves in this example), so lets do it now outside of the loop:
-    suzanne.setViewT(view);
-    glm::mat4 model = glm::mat4(1.0f); // Define a model matrix for the square
+    // === Create GL objects ===
+    LJGL::camera cam(window); // Create a camera object, this also sets up callbacks
+    LJGL::model_EBO object; // Create a model object
+    object.readVBO(objToLoad + ".vbo");
+    object.readEBO(objToLoad + ".ebo");
+    object.m_shader.createShader("GLSL/shader.vert.glsl", "GLSL/shader.frag.glsl");
+    object.m_shader.setUniform3f("lightPos", 3.0f, 1.0f, 2.0f);
 
     // === Main loop === //
     while (!glfwWindowShouldClose(window)){
-        // === Unbind/reset stuff (best practice or something) ===
-        glUseProgram(0);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
+        // === Camera movement ===
+        cam.processMovement(); // Process camera movement (WASD)
+        object.m_view = cam.getViewMatrix(); // Get the view matrix from the camera object
+        object.m_projection = cam.getPerspectiveMatrix(); // Update the projection matrix
+
+        // === Model movement ===
+        if(glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS){
+            Serial.print('R');
+            while(Serial.available() == 0){} // Wait for the Arduino to send something back
+        }
+        Serial.print('X');
+        int angleX = atoi(Serial.readStringUntil('\n').c_str());
+        Serial.flush();
+        Serial.print('Y');
+        int angleY = atoi(Serial.readStringUntil('\n').c_str());
+        Serial.flush();
+        Serial.print('Z');
+        int angleZ = atoi(Serial.readStringUntil('\n').c_str());
+        Serial.flush();
+        object.m_model = glm::mat4(1.0f); // Reset the model matrix so the rotation is not cumulative
+        object.m_model = glm::rotate(object.m_model, glm::radians((float)angleX), glm::vec3(1.0f, 0.0f, 0.0f));
+        object.m_model = glm::rotate(object.m_model, glm::radians((float)angleY), glm::vec3(0.0f, 1.0f, 0.0f));
+        object.m_model = glm::rotate(object.m_model, glm::radians((float)angleZ), glm::vec3(0.0f, 0.0f, 1.0f));
 
         // === Render ===
         glClearColor(0.2f, 0.2f, 0.2f, 1.0f); // Set the background color
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear the color and depth buffer
-
-        // Set up the perspective projection matrix to ensure that the suzanne is rendered correctly if the window is resized:
-        glGetIntegerv(GL_VIEWPORT, m_viewport); // Get the viewport size (maybe code to only do upon resize? - would required messy global variables)
-        perspective = glm::perspective(glm::radians(45.0f), (float)m_viewport[2] / (float)m_viewport[3], 0.1f, 100.0f); // Update the perspective projection matrix
-        suzanne.setProjectionT(perspective); // Set the perspective projection matrix
-
-        
-        Serial.print('X');
-        int angleX = atoi(Serial.readStringUntil('\n').c_str());
-        Serial.flush();
-
-        Serial.print('Y');
-        int angleY = atoi(Serial.readStringUntil('\n').c_str());
-        Serial.flush();
-
-        Serial.print('Z');
-        int angleZ = atoi(Serial.readStringUntil('\n').c_str());
-        Serial.flush();
-
-        // Set the angles:
-        model = glm::mat4(1.0f);
-        model = glm::rotate(model, glm::radians((float)angleX), glm::vec3(1.0f, 0.0f, 0.0f));
-        model = glm::rotate(model, glm::radians((float)angleY), glm::vec3(0.0f, 1.0f, 0.0f));
-        model = glm::rotate(model, glm::radians((float)angleZ), glm::vec3(0.0f, 0.0f, 1.0f));
-        suzanne.setModelT(model); // Set the model matrix
-        suzanne.draw();
-        
-        // If user pressing space, send 'R' to arduino to re-calibrate
-        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS){
-            Serial.print('R');
-            Serial.flush();
-            // Wait for arduino to finish re-calibration (wait for something to be sent back)
-            while(!Serial.available());
-        }
+        object.draw();
 
         // === Swap buffers ===
         glfwSwapBuffers(window);
         glfwPollEvents();
+
+        // === Close window if escape is pressed ===
+        if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS){ glfwSetWindowShouldClose(window, true); }
     }
 
     return 0;
